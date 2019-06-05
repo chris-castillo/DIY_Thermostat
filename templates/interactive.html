@@ -139,34 +139,19 @@
 
 		<div class="row">
 
-<!-- 			<div>
-				{%for name in names%} 
-
-					{{name}}: <div id='{{name}}' style='display: inline-block;'> {{variables[name]}} </div>
-
-				{%endfor%} 
-
-				avg: <div id='avg' style='display: inline-block;'> {{variables['avg']}} </div>
-
-			</div> -->
-
 			<table class="table table-sm">
 			  <thead>
 			    <tr>
-				    {%for name in names%} 
-
-						<th scope="col">{{name}}</th>
-
-					{%endfor%} 
+				    {% for option in flask_info.options %} 
+						<th scope="col">{{option}}</th>
+					{% endfor %} 
 			    </tr>
 			  </thead>
 			  <tbody>
 			  	<tr>
-				{%for name in names%} 
-
-						<td>{{variables[name]}}</td>
-
-				{%endfor%} 
+					{% for option in flask_info.options %} 
+						<td>{{flask_info.most_recent_temps[option]}}</td>
+					{% endfor %} 
 				</tr>
 			  </tbody>
 			</table>
@@ -199,7 +184,7 @@
 				<div class="col-2">
 
 					<h1 id='hightemp' style='display: inline-block; position: relative; top: 50%; transform: translateY(-50%);'>
-						{{ variables['hightemp']}}
+						{{ flask_info.thermoSetTemps['hightemp']}}
 					</h1>
 
 				</div>
@@ -243,7 +228,7 @@
 				<div class="col-2">
 
 					<h1 id='lowtemp' style='display: inline-block; position: relative; top: 50%; transform: translateY(-50%);'>
-						{{ variables['lowtemp']}}
+						{{ flask_info.thermoSetTemps['lowtemp']}}
 					</h1>
 
 				</div>
@@ -268,19 +253,19 @@
 				<div>
 				Which temp to use:
 					<div class="btn-group btn-group-toggle" data-toggle="buttons" >
-						{%for name in names%}
+						{% for option in flask_info.options %}
 
-							{% if variables['temp2use'] == name %}
+							{% if flask_info.thermoSetTemps['temp2use'] == option %}
 					  			<label class="btn btn-secondary active">
-					    			<input type="radio" autocomplete="off"> {{name}}			
+					    			<input type="radio" autocomplete="off"> {{option}}			
 					  			</label>
 					  		{% else %}
 					  			<label class="btn btn-secondary">
-					    			<input type="radio" autocomplete="off"> {{name}}			
+					    			<input type="radio" autocomplete="off"> {{option}}			
 					  			</label>
 					  		{% endif %}
 
-				  		{%endfor%}
+				  		{% endfor %}
 
 					</div>
 				</div>

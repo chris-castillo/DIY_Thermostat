@@ -7,72 +7,12 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from io import BytesIO
-from datetime import datetime
 import matplotlib.dates as mdates
 from scipy.signal import savgol_filter
-
-def return_influx(timerange=1,fahrenheit=False):
-	# timerange is units of hours
-
-	# construct query string
-	query = 'SELECT * FROM temperature WHERE time > now() - ' + str(timerange) + 'h'
-
-	# query influxdb database
-	results = client.query(query)
-
-	# instantiate dictionary and assign values based on query
-	temps_in_range = {}
-	for curr_IP,room in zip(IPs,rooms):
-		# instantiate
-		temps_in_range[room] = {}
-		temps_in_range[room]['time'] = []
-		temps_in_range[room]['temp'] = []
-
-		#retrieve datapoints only related to each specific IP
-		temp_points = results.get_points(tags={'localIP':curr_IP})
-		
-		#assign values from query to dictionary
-		for point in temp_points:
-			temps_in_range[room]['time'].append(point['time'])
-			temps_in_range[room]['temp'].append(point['temp'])
-
-		#convert time string to datetime
-		temp_date_string_list = temps_in_range[room]['time']
-		temp_date_datetime_list = [datetime.strptime(temp_time.split(".")[0], influx_time_format_string_code) for temp_time in temp_date_string_list]
-
-		temps_in_range[room]['time'] = temp_date_datetime_list
-	
-	if fahrenheit:
-		for room in rooms:
-			temps_in_range[room]['temp'] = [convertC2F(temp_temp) for temp_temp in temps_in_range[room]['temp']]
-
-
-	return(temps_in_range)
-
-def get_influx():
-	results = client.query('SELECT * FROM temperature ORDER BY DESC LIMIT 2000')
-
-	current_temps = {}
-
-	for curr_IP,name in zip(IPs,names):
-		temp_points = results.get_points(tags={'localIP':curr_IP})
-		list2collect = []
-		for point in temp_points:
-			# print(curr_IP,point)
-			list2collect.append(point)
-		# print(curr_IP,list2collect)
-		curr_temp_C = list2collect[-1]['temp']
-		current_temps[name] = round(convertC2F(curr_temp_C),numDecimals2Round)
-
-	current_temps['avg'] = round(np.average([current_temps[name] for name in names[:-1]]),numDecimals2Round)
-
-	return(current_temps)
-
-def convertC2F(inputC):
-	return inputC*1.8+32
+import functions as fn
+from datetime import datetime
 
 numDecimals2Round = 1
-
 
 IPs = ['192.168.1.213','192.168.1.214','192.168.1.215','192.168.1.216']
 rooms = ['kitchen','office','TV','bedroom']
@@ -87,35 +27,18 @@ app = Flask(__name__)
 
 path = '/home/albert/config_web/'
 
-variablesToPass = {	"cool": 			False, 
-					"heat":				True, 
-					"air":				True,
-					"lowtemp":			60, 
-					"hightemp":			80,
-					"temp2use":			'avg'
-						}
+flask_info = fn.flask_info(client, IPs, rooms,influx_time_format_string_code)
 
-current_temps = return_influx(fahrenheit=True)
-
-for room in rooms:
-	variablesToPass[room] = current_temps[room]['temp'][-1]
-
-with open(path+'thermoCurrentStates', 'w') as outfile:
-	json.dump(variablesToPass, outfile)
+flask_info.retrieve_latest_influxdb_setTemps()
 
 @app.route('/interactive')
 def interactive():
 
-	current_temps = return_influx()
+	flask_info.retrieve_influxdb_temps(fahrenheit=True)
 
-	for room in rooms:
-		variablesToPass[room] = current_temps[room]['temp'][-1]
+	flask_info.retrieve_latest_influxdb_setTemps()
 
-	print([variablesToPass[room] for room in rooms])
-	variablesToPass['avg'] = np.average([variablesToPass[room] for room in rooms])
-
-
-	return render_template("interactive.html", variables = variablesToPass, names=options)
+	return render_template("interactive.html", flask_info = flask_info)
 
 @app.route('/background_process',methods=['POST'])
 def background_process():
@@ -123,46 +46,48 @@ def background_process():
 	print(req)
 
 	if len(req) == 1:
-		variablesToPass['temp2use'] = req[0]
+		flask_info.thermoSetTemps['temp2use'] = req[0]
 	else:	
 		if req[2] == "+":
-			variablesToPass[req[1] + "temp"] += 1
+			flask_info.thermoSetTemps[req[1] + "temp"] += 1
 
 		if req[2] == "-":
-			variablesToPass[req[1] + "temp"] -= 1
+			flask_info.thermoSetTemps[req[1] + "temp"] -= 1
 
-	with open(path+'thermoCurrentStates', 'w') as outfile:
-		json.dump(variablesToPass, outfile)
+	flask_info.write_logic_to_influxdb()
 
-	return jsonify(variablesToPass)
+	flask_info.retrieve_latest_influxdb_setTemps()
+
+	return jsonify(flask_info.thermoSetTemps)
 
 
 @app.route('/thermostat_plot_png/<hours>')
 def thermostat_plot_png(hours):
 	#retrieve latest 
 
+	flask_info.retrieve_influxdb_temps(timerange=hours,fahrenheit=True)
 
-	current_temps = return_influx(hours)
+	flask_info.retrieve_all_influxdb_setTemps(timerange=hours)
 
 	fig, ax = plt.subplots()
 
 	for room in rooms:
-		dates = mdates.date2num(current_temps[room]['time'])
+		dates = mdates.date2num(flask_info.all_temps[room]['time'])
 		#window filter scaled based on data size
-		num_data_points = len(current_temps[room]['temp'])
+		num_data_points = len(flask_info.all_temps[room]['temp'])
 		window_filter = int(num_data_points/5)
 		#ensure window filter is odd
 		if (window_filter % 2 == 0): window_filter += 1
-		yhat = savgol_filter(current_temps[room]['temp'], window_filter, 3) 
-		if variablesToPass['temp2use'] == room:
+		yhat = savgol_filter(flask_info.all_temps[room]['temp'], window_filter, 3) 
+		if flask_info.thermoSetTemps['temp2use'] == room:
 			ax.plot_date(dates,yhat,'-',linewidth=3)
 		else:
 			ax.plot_date(dates,yhat,'-')
-		# ax.plot_date(dates,current_temps[room]['temp'],'o',ms=0.5)
+		# ax.plot_date(dates,flask_info.all_temps[room]['temp'],'o',ms=0.5)
 
 	# also show average
-	all_temps = np.concatenate([current_temps[room]['temp'] for room in rooms])
-	all_dates = mdates.date2num(np.concatenate([current_temps[room]['time'] for room in rooms]))
+	all_temps = np.concatenate([flask_info.all_temps[room]['temp'] for room in rooms])
+	all_dates = mdates.date2num(np.concatenate([flask_info.all_temps[room]['time'] for room in rooms]))
 	# print(all_dates)
 
 	# ax.plot_date(all_dates,all_temps,'o',ms=0.5)
@@ -177,10 +102,27 @@ def thermostat_plot_png(hours):
 	yhat = savgol_filter(all_temps, window_filter, 3) 
 	# ax.plot_date(all_dates,all_temps,'o',ms=0.7)
 
-	if variablesToPass['temp2use'] == 'avg':
+	if flask_info.thermoSetTemps['temp2use'] == 'avg':
 		ax.plot_date(all_dates,yhat,'--',linewidth=3)
 	else:
 		ax.plot_date(all_dates,yhat,'--')
+
+
+	# --------- PLOT SET TEMPS ----------------
+	dates = mdates.date2num(flask_info.all_setTemps['time'])
+
+	#append current time so we can see up to date
+	dates = np.append(dates,mdates.date2num(datetime.utcnow()))
+
+	_hightemp = flask_info.all_setTemps['hightemp']
+	_lowtemp = flask_info.all_setTemps['lowtemp']
+
+	_hightemp = np.append(_hightemp,_hightemp[-1])
+	_lowtemp  = np.append(_lowtemp,_lowtemp[-1])
+
+	ax.plot_date(dates,_hightemp,'-',c='blue')
+	ax.plot_date(dates,_lowtemp,'-',c='red')
+
 	ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
 	plt.tight_layout()
