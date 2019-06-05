@@ -1,0 +1,294 @@
+
+	<head>
+		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+		<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous">
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+
+
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+		<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+		<style>
+		.col-1 {
+			  display: flex;
+		  align-items: center;
+		  justify-content: center;
+		}
+		</style>
+
+
+
+		<script>
+			$(function(){
+				$('button').click(function(){
+					var val = $(this).val();
+					var val_split = val.split(" ")
+					console.log(val_split);
+					if (val_split[0] == 'temp'){
+						$.ajax({
+							url: '/background_process',
+							data: {'data': val},
+							type: 'POST',
+							success: function(response){
+								console.log(response);
+								$('#lowtemp').html(response['lowtemp']);
+								$('#hightemp').html(response['hightemp']);
+							},
+							error: function(error){
+								console.log(error);
+							}
+						});
+					
+					} else if (val_split[0] == 'zoom') {
+						var val = $(this).val();
+						var current_src = document.getElementById('dynamicImage').src;
+						var current_src_filtered = current_src.split("?")[0];
+						var current_timerange = current_src_filtered.split("/");
+						console.log(current_timerange);
+						current_timerange = current_timerange[current_timerange.length - 1];
+
+						console.log(current_timerange);
+
+						if (val_split[1] == "in") {current_timerange = current_timerange / 2}
+						if (val_split[1] == "out") {current_timerange = current_timerange * 2}
+
+							console.log(current_timerange);
+
+						document.getElementById('dynamicImage').src = current_src_filtered.substring(0,current_src_filtered.length-1) + current_timerange + "?" + new Date();
+					}
+
+				});
+			});
+
+			$(function(){
+			$('.btn-secondary').click(function(){
+				var val = $(this).text();
+				var current_src = document.getElementById('dynamicImage').src;
+				var current_src_filtered = current_src.split("?")[0];
+				$.ajax({
+					url: '/background_process',
+					data: {'data': val},
+					type: 'POST',
+					success: function(response){
+						document.getElementById('dynamicImage').src = current_src_filtered + "?" + new Date();
+						console.log(response);
+					},
+					error: function(error){
+						console.log(error);
+						}
+					});
+				});
+			});
+
+			// update dynamicImage every 5 seconds
+			$(function() {
+			   var intervalMS = 5000; // 5 seconds
+			   setInterval(function() {
+				   var current_src = document.getElementById('dynamicImage').src;
+				   var current_src_filtered = current_src.split("?")[0];
+				   console.log(current_src_filtered);
+			      // $("#dynamicImage").prop("src", current_src_filtered + "?" + new Date());
+			      document.getElementById('dynamicImage').src = current_src_filtered + "?" + new Date();
+			   }, intervalMS);
+			});
+
+			// $(function(){
+			// 	$('#zoom').click(function(){
+			// 		var val = $(this).val();
+			// 		var current_src = document.getElementById('dynamicImage').src;
+			// 		var current_timerange = current_src.split("/?");
+			// 		console.log(current_timerange);
+			// 		// if (val == "in") {
+			// 		// 	document.getElementById('dynamicImage').src = 
+			// 		// }
+			// 	});
+			// });
+		</script>
+
+	</head>
+
+<body>
+
+	<div class="container">
+
+		<div class="row-container">
+
+			<!-- <div class="iframe-container">
+				<iframe src="http://192.168.1.106:3001/d-solo/QVRWlxkWk/temps?orgId=1&panelId=2" frameborder="0"></iframe>
+			
+			</div> -->
+			<img id="dynamicImage" src="/thermostat_plot_png/2" alt="Simple pie chart">
+
+
+					<button class='btn btn-default' type="button" value="zoom in">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-plus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+
+					<button class='btn btn-default' type="button" value="zoom out">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-minus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+		</div>
+
+		<div class="row">
+
+<!-- 			<div>
+				{%for name in names%} 
+
+					{{name}}: <div id='{{name}}' style='display: inline-block;'> {{variables[name]}} </div>
+
+				{%endfor%} 
+
+				avg: <div id='avg' style='display: inline-block;'> {{variables['avg']}} </div>
+
+			</div> -->
+
+			<table class="table table-sm">
+			  <thead>
+			    <tr>
+				    {%for name in names%} 
+
+						<th scope="col">{{name}}</th>
+
+					{%endfor%} 
+			    </tr>
+			  </thead>
+			  <tbody>
+			  	<tr>
+				{%for name in names%} 
+
+						<td>{{variables[name]}}</td>
+
+				{%endfor%} 
+				</tr>
+			  </tbody>
+			</table>
+
+
+		</div>
+
+		<div class="row justify-content-md-center">
+
+
+			<div class="row"> 
+
+				<div class="col-8">
+					<h5 class="text-md-left" style="position: relative; top: 50%; transform: translateY(-50%);">
+						Turn on AC above this temp: 
+					</h5>
+				</div>
+
+				<div class="col-1">
+
+					<button class='btn btn-default' value='temp high +' type="button">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-plus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+
+				</div>
+
+				<div class="col-2">
+
+					<h1 id='hightemp' style='display: inline-block; position: relative; top: 50%; transform: translateY(-50%);'>
+						{{ variables['hightemp']}}
+					</h1>
+
+				</div>
+
+				<div class="col-1">
+
+					<button class='btn btn-default' value='temp high -' type="button">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-minus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+				</div>
+			</div>
+
+		</div>
+
+		<div class="row justify-content-md-center">
+
+
+			<div class="row"> 
+
+
+				<div class="col-8">
+					<h5 class="text-md-left" style="position: relative; top: 50%; transform: translateY(-50%);">
+						Turn on Heat below this temp:  
+					</h5>
+				</div>
+
+				<div class="col-1">
+
+					<button class='btn btn-default' value='temp low +' type="button">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-plus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+
+				</div>
+
+				<div class="col-2">
+
+					<h1 id='lowtemp' style='display: inline-block; position: relative; top: 50%; transform: translateY(-50%);'>
+						{{ variables['lowtemp']}}
+					</h1>
+
+				</div>
+
+				<div class="col-1">
+
+					<button class='btn btn-default' value='temp low -' type="button">
+						<span class="fa-stack fa-1x">
+						  <i class="fas fa-square fa-stack-2x"></i>
+						  <i class="fas fa-minus fa-stack-1x fa-inverse"></i>
+						</span>
+					</button>
+				</div>
+			</div>
+
+		</div>
+
+		<div class="row justify-content-md-center"> 
+
+
+			<div class="row">
+				<div>
+				Which temp to use:
+					<div class="btn-group btn-group-toggle" data-toggle="buttons" >
+						{%for name in names%}
+
+							{% if variables['temp2use'] == name %}
+					  			<label class="btn btn-secondary active">
+					    			<input type="radio" autocomplete="off"> {{name}}			
+					  			</label>
+					  		{% else %}
+					  			<label class="btn btn-secondary">
+					    			<input type="radio" autocomplete="off"> {{name}}			
+					  			</label>
+					  		{% endif %}
+
+				  		{%endfor%}
+
+					</div>
+				</div>
+
+			</div>
+
+		</div>
+
+</div>
+
+</body>
