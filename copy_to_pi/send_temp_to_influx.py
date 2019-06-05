@@ -19,5 +19,5 @@ device_folder = glob.glob(base_dir + '28*')[0]
 device_file = device_folder + '/w1_slave'
 
 while True:
-    pi_fn.write_temp()
+    pi_fn.write_temp(device_file,localIP,client)
     time.sleep(30)
