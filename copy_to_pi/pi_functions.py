@@ -1,6 +1,4 @@
 import time
-import os
-import glob
 import socket
 from datetime import datetime, timezone
 
